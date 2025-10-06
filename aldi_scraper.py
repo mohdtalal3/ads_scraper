@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 import time
+import fitz  # PyMuPDF
 
 # Aldi-specific token
 ALDI_ACCESS_TOKEN = "29d9bfdcf546dc601c10c64ed1e932f5"
@@ -29,21 +30,19 @@ def download_file(url, path):
         print(f"  ❌ Failed to download {url}: {e}")
 
 
-def download_flyer_images(sfml_url, output_folder, flyer_base_name):
-    """Download flyer page images."""
+def convert_pdf_to_images(pdf_path, output_folder, base_name):
+    """Convert PDF pages to JPG images (cross-platform using PyMuPDF)."""
     try:
-        data = requests.get(sfml_url).json()
-        pages = data.get("flyer", {}).get("pages", [])
-        print(f"  📄 Downloading {len(pages)} flyer page images...")
-        for i, page in enumerate(pages, 1):
-            img_url = page.get("image_url")
-            if not img_url:
-                continue
-            img_name = f"{flyer_base_name}_page_{i}.jpg"
-            download_file(img_url, os.path.join(output_folder, img_name))
-            print(f"    ✅ Page {i} saved")
+        doc = fitz.open(pdf_path)
+        print(f"  📄 Converting {len(doc)} pages from {pdf_path.name} to images...")
+        for i, page in enumerate(doc, 1):
+            pix = page.get_pixmap(dpi=200)
+            out_path = output_folder / f"{base_name}_page_{i}.jpg"
+            pix.save(out_path)
+            print(f"    ✅ Saved: {out_path.name}")
+        doc.close()
     except Exception as e:
-        print(f"⚠️ Error fetching flyer images: {e}")
+        print(f"  ⚠️ Error converting PDF to images: {e}")
 
 
 # ---------- Aldi Scraper ----------
@@ -74,16 +73,17 @@ def scrape_aldi(store_code="440-018"):
         valid_from = f["valid_from"].split("T")[0]
         valid_to = f["valid_to"].split("T")[0]
         pdf_url = f.get("pdf_url")
-        sfml_url = f.get("sfml_url")
 
         # Format dates
         from_fmt = datetime.strptime(valid_from, "%Y-%m-%d").strftime("%m-%d-%y")
         to_fmt = datetime.strptime(valid_to, "%Y-%m-%d").strftime("%m-%d-%y")
 
         # Folder and file base name
-        flyer_base_name = f"Aldi_{flyer_name}_{from_fmt}_{to_fmt}"
-        folder_path = Path(flyer_base_name)
+        folder_name = f"Aldi_WeeklyAd_{from_fmt}-{to_fmt}"
+        folder_path = Path(folder_name)
         folder_path.mkdir(exist_ok=True)
+
+        flyer_base_name = f"Aldi_WeeklyAd_{from_fmt}-{to_fmt}"
 
         print(f"📰 [{idx}/{len(flyers)}] Processing flyer: {flyer_base_name}")
 
@@ -95,9 +95,8 @@ def scrape_aldi(store_code="440-018"):
             download_file(pdf_url, pdf_path)
             print("  ✅ Flyer PDF saved.")
 
-        # Download full flyer page images
-        if sfml_url:
-            download_flyer_images(sfml_url, folder_path, flyer_base_name)
+            # Convert PDF → images
+            convert_pdf_to_images(pdf_path, folder_path, flyer_base_name)
 
         # Get product data
         print("  🛒 Fetching product data...")
