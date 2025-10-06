@@ -2,27 +2,26 @@
 
 This small Python project downloads Aldi flyer PDFs, page images and product images, and saves product data to CSV files.
 
-### 1) Clone the repo
 
-First, clone the repository to your machine and add the remote (as requested):
 
-```bash
-git clone https://github.com/mohdtalal3/ads_scraper.git
-cd ads_scraper
-```
-
-> Note: If you already cloned a folder named differently (for example `ads`), `cd` into that folder instead.
-
-### 2) Requirements / Virtual environment (recommended)
+### 1) Requirements / Virtual environment (recommended) (One time)
 
 Create and activate a virtual environment, then install dependencies:
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate   # zsh/bash
-pip install --upgrade pip
-pip install -r requirements.txt
 ```
+### 2) Clone the repo (One time)
+
+Clone the repository to your machine :
+
+```bash
+git clone https://github.com/mohdtalal3/ads_scraper.git
+
+```
+
+> Note: If you already cloned a folder named differently (for example `ads`), `cd` into that folder instead.
+
 
 ### 3) What this script does
 
@@ -43,5 +42,8 @@ All downloaded files are saved into a folder named after the flyer (e.g. `Aldi_.
 From the project root run:
 
 ```bash
+cd ads_scraper
+source .venv/bin/activate  
+pip install -r requirements.txt    ##(Only one time)
 python3 aldi_scraper.py
 ```
