@@ -73,17 +73,18 @@ def scrape_aldi(store_code="440-018"):
         valid_from = f["valid_from"].split("T")[0]
         valid_to = f["valid_to"].split("T")[0]
         pdf_url = f.get("pdf_url")
-
+        print(f"📰 Flyer ID: {flyer_id}, Name: {flyer_name}, Valid: {valid_from} to {valid_to}")
         # Format dates
         from_fmt = datetime.strptime(valid_from, "%Y-%m-%d").strftime("%m-%d-%y")
         to_fmt = datetime.strptime(valid_to, "%Y-%m-%d").strftime("%m-%d-%y")
 
-        # Folder and file base name
-        folder_name = f"Aldi_WeeklyAd_{from_fmt}-{to_fmt}"
+        # Folder and file base name - use actual flyer name instead of hardcoded "WeeklyAd"
+        safe_flyer_name = safe_filename(flyer_name)
+        folder_name = f"Aldi_{safe_flyer_name}_{from_fmt}-{to_fmt}"
         folder_path = Path(folder_name)
         folder_path.mkdir(exist_ok=True)
 
-        flyer_base_name = f"Aldi_WeeklyAd_{from_fmt}-{to_fmt}"
+        flyer_base_name = f"Aldi_{safe_flyer_name}_{from_fmt}-{to_fmt}"
 
         print(f"📰 [{idx}/{len(flyers)}] Processing flyer: {flyer_base_name}")
 
