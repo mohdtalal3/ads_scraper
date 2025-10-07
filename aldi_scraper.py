@@ -30,16 +30,43 @@ def download_file(url, path):
         print(f"  ❌ Failed to download {url}: {e}")
 
 
+
 def convert_pdf_to_images(pdf_path, output_folder, base_name):
-    """Convert PDF pages to JPG images (cross-platform using PyMuPDF)."""
+    """Convert PDF pages to JPG images (cross-platform using PyMuPDF), keeping under 500KB."""
     try:
         doc = fitz.open(pdf_path)
         print(f"  📄 Converting {len(doc)} pages from {pdf_path.name} to images...")
         for i, page in enumerate(doc, 1):
-            pix = page.get_pixmap(dpi=200)
             out_path = output_folder / f"{base_name}_page_{i}.jpg"
-            pix.save(out_path)
-            print(f"    ✅ Saved: {out_path.name}")
+            
+            # Start with lower DPI to reduce file size
+            dpi = 150
+            quality = 85
+            
+            while dpi >= 50:  # Don't go below 50 DPI for readability
+                pix = page.get_pixmap(dpi=dpi)
+                
+                # Save with quality setting
+                pix.save(out_path, "JPEG", jpg_quality=quality)
+                
+                # Check file size
+                file_size = out_path.stat().st_size
+                
+                if file_size <= 500 * 1024:  # 500KB
+                    print(f"    ✅ Saved: {out_path.name} ({file_size // 1024}KB, DPI: {dpi}, Quality: {quality})")
+                    break
+                else:
+                    # Try reducing quality first
+                    if quality > 60:
+                        quality -= 10
+                    else:
+                        # If quality is already low, reduce DPI
+                        dpi -= 25
+                        quality = 85  # Reset quality for new DPI
+            else:
+                # If we couldn't get under 500KB, keep the last attempt
+                print(f"    ⚠️ Saved: {out_path.name} ({file_size // 1024}KB) - couldn't reduce below 500KB")
+                
         doc.close()
     except Exception as e:
         print(f"  ⚠️ Error converting PDF to images: {e}")
