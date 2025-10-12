@@ -107,8 +107,14 @@ def scrape_aldi(store_code="440-018"):
 
         # Folder and file base name - use actual flyer name instead of hardcoded "WeeklyAd"
         safe_flyer_name = safe_filename(flyer_name)
+        
+        # Create base aldi folder
+        base_folder = Path("aldi")
+        base_folder.mkdir(exist_ok=True)
+        
+        # Create specific flyer folder inside aldi/
         folder_name = f"Aldi_{safe_flyer_name}_{from_fmt}-{to_fmt}"
-        folder_path = Path(folder_name)
+        folder_path = base_folder / folder_name
         folder_path.mkdir(exist_ok=True)
 
         flyer_base_name = f"Aldi_{safe_flyer_name}_{from_fmt}-{to_fmt}"
