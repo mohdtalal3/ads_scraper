@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-
+import html
 HEADERS = {
     "Accept": "*/*",
     "Content-Type": "application/json",
@@ -328,26 +328,41 @@ def get_publix_weekly_ad(store_code, campaign_id, promotions):
 
         with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow([
-                "flyer_id", "flyer_name", "id", "name", "price", "description", 
-                "additional_deal_info", "valid_from", "valid_to", "image"
-            ])
+
+            # Determine maximum number of categories in all deals
+            max_cats = max(len(d.get("categories") or []) for d in deals)
+
+            # Base header
+            header = [
+                "flyer_id", "flyer_name", "id", "name", "price", "description",
+                "additional_deal_info", "valid_from", "valid_to", "image",
+                "brand", "department", "isPrintable", "isClipped",
+                "isSneakPeek", "recommendedRank"
+            ]
+
+            # Add dynamic category columns: cat1, cat2, ..., catN
+            for i in range(1, max_cats + 1):
+                header.append(f"cat{i}")
+
+            writer.writerow(header)
+
+            # Write deal rows
             for d in deals:
-                # Use enhanced image URL if available, otherwise use regular image URL
+
+                # Get all categories for this item
+                categories = d.get("categories") or []
+
+                # Use enhanced image URL, fallback to normal
                 image_url = d.get("enhancedImageUrl") or d.get("imageUrl") or ""
-                
-                # Download the image if URL exists
                 local_image_path = ""
+
                 if image_url:
                     flyer_id = d.get("waId") or d.get("id")
                     clean_flyer_id = clean_id(flyer_id)
                     item_id = clean_id(d.get("id"))
-                    
-                    # Create filename: flyerid_itemid.jpg
                     image_filename = f"{clean_flyer_id}_{item_id}.jpg"
                     local_image_path = flyer_folder / image_filename
-                    
-                    # Retry mechanism for image download
+
                     max_retries = 3
                     retry_count = 0
                     download_success = False
@@ -357,7 +372,7 @@ def get_publix_weekly_ad(store_code, campaign_id, promotions):
                             img_data = requests.get(image_url, timeout=30).content
                             with open(local_image_path, "wb") as img_file:
                                 img_file.write(img_data)
-                            local_image_path = image_filename  # Store just filename in CSV
+                            local_image_path = image_filename
                             download_success = True
                             print(f"📥 Downloaded: {image_filename}")
                         except Exception as e:
@@ -365,21 +380,34 @@ def get_publix_weekly_ad(store_code, campaign_id, promotions):
                             if retry_count < max_retries:
                                 print(f"⚠️ Retry {retry_count}/{max_retries} for {d.get('title')}")
                             else:
-                                print(f"❌ Failed to download image for {d.get('title')} after {max_retries} attempts: {e}")
+                                print(f"❌ Failed to download image for {d.get('title')}: {e}")
                                 local_image_path = ""
-                
-                writer.writerow([
+
+                # Base row data
+                row = [
                     d.get("waId") or d.get("id"),
-                    d.get("wa_promotionType"),
+                    html.unescape(d.get("wa_promotionType") or ""),
                     d.get("id"),
-                    d.get("title"),
-                    d.get("savings"),
-                    d.get("description") or "",
-                    d.get("additionalDealInfo") or "",
+                    html.unescape(d.get("title") or ""),
+                    html.unescape(d.get("savings") or ""),
+                    html.unescape(d.get("description") or ""),
+                    html.unescape(d.get("additionalDealInfo") or ""),
                     valid_from,
                     valid_to,
                     local_image_path,
-                ])
+                    html.unescape(d.get("brand") or ""),
+                    html.unescape(d.get("department") or ""),
+                    d.get("isPrintable"),
+                    d.get("isClipped"),
+                    d.get("isSneakPeek"),
+                    d.get("recommendedRank"),
+                ]
+                # Add dynamic categories (cat1 → catN)
+                for i in range(max_cats):
+                    row.append(categories[i] if i < len(categories) else "")
+                categories = [html.unescape(c) for c in (d.get("categories") or [])]
+
+                writer.writerow(row)
 
         print(f"✅ Saved {len(deals)} deals → {csv_path}")
         print(f"📊 Progress: Downloaded images for {flyer_name}")
