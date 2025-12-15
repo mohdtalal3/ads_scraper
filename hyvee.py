@@ -6,9 +6,9 @@ from pathlib import Path
 import time
 import fitz  # PyMuPDF
 from PIL import Image
-
-# HEB-specific token
-HEB_ACCESS_TOKEN = "98856c1ed32273db1aac58bfe8c76d90"
+import json
+# Hyvee-specific token
+HYVEE_ACCESS_TOKEN = "3858c06074010b8c23cdc5010323375d"
 
 
 # ---------- Helper Functions ----------
@@ -168,13 +168,13 @@ def convert_pdf_to_images(pdf_path, output_folder, base_name):
         print(f"  ⚠️ Error converting PDF to images: {e}")
 
 
-# ---------- HEB Scraper ----------
-def scrape_heb(store_code="92"):
-    """Scrape HEB flyer and product data."""
-    pub_url = "https://dam.flippenterprise.net/flyerkit/publications/ffheb"
+# ---------- Hyvee Scraper ----------
+def scrape_hyvee(store_code="1759"):
+    """Scrape Hyvee flyer and product data."""
+    pub_url = "https://dam.flippenterprise.net/flyerkit/publications/hyvee"
     pub_params = {
         "locale": "en",
-        "access_token": HEB_ACCESS_TOKEN,
+        "access_token": HYVEE_ACCESS_TOKEN,
         "show_storefronts": "true",
         "store_code": store_code
     }
@@ -187,12 +187,13 @@ def scrape_heb(store_code="92"):
         return []
 
     flyers = response.json()
+    with open("flyers.json", "w", encoding="utf-8") as f:
+        json.dump(flyers, f, ensure_ascii=False, indent=2)
     print(f"✅ Found {len(flyers)} flyer(s).\n")
-
     all_results = []
     for idx, f in enumerate(flyers, 1):
         flyer_id = f["id"]
-        flyer_name = f.get("name", "Unknown").replace(" ", "")
+        flyer_name = f.get("external_display_name", "Unknown").replace(" ", "")
         valid_from = f["valid_from"].split("T")[0]
         valid_to = f["valid_to"].split("T")[0]
         pdf_url = f.get("pdf_url")
@@ -204,16 +205,16 @@ def scrape_heb(store_code="92"):
         # Folder and file base name - use actual flyer name instead of hardcoded "WeeklyAd"
         safe_flyer_name = safe_filename(flyer_name)
         
-        # Create base heb folder
-        base_folder = Path("heb")
+        # Create base hyvee folder
+        base_folder = Path("hyvee")
         base_folder.mkdir(exist_ok=True)
         
-        # Create specific flyer folder inside heb/
-        folder_name = f"HEB_{safe_flyer_name}_{from_fmt}-{to_fmt}"
+        # Create specific flyer folder inside hyvee/
+        folder_name = f"Hyvee_{safe_flyer_name}_{from_fmt}-{to_fmt}"
         folder_path = base_folder / folder_name
         folder_path.mkdir(exist_ok=True)
 
-        flyer_base_name = f"HEB_{safe_flyer_name}_{from_fmt}-{to_fmt}"
+        flyer_base_name = f"Hyvee_{safe_flyer_name}_{from_fmt}-{to_fmt}"
 
         print(f"📰 [{idx}/{len(flyers)}] Processing flyer: {flyer_base_name}")
 
@@ -234,7 +235,7 @@ def scrape_heb(store_code="92"):
         prod_params = {
             "display_type": "all",
             "locale": "en",
-            "access_token": HEB_ACCESS_TOKEN
+            "access_token": HYVEE_ACCESS_TOKEN
         }
         resp = requests.get(prod_url, params=prod_params)
         if resp.status_code != 200:
@@ -321,9 +322,9 @@ def scrape_heb(store_code="92"):
 
 # ---------- Main Entry ----------
 if __name__ == "__main__":
-    store_code = "92"
-    print(f"🚀 Starting HEB scraper for store: {store_code}\n")
+    store_code = "1759"
+    print(f"🚀 Starting Hyvee scraper for store: {store_code}\n")
     start_time = time.time()
-    data = scrape_heb(store_code)
+    data = scrape_hyvee(store_code)
     elapsed = time.time() - start_time
     print(f"\n⏱️ Done in {elapsed:.2f} seconds. {len(data)} total products collected.")
