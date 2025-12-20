@@ -344,15 +344,15 @@ for i, coupon in enumerate(coupons, 1):
         img_path = folder_path / image_filename
         
         # Download and crop image
-    #     cropped = download_image(image_url, img_path)
-    #     local_image_path = image_filename
+        cropped = download_image(image_url, img_path)
+        local_image_path = image_filename
         
-    #     if cropped:
-    #         print(f"📥 [{i}/{len(coupons)}] Downloaded & cropped: {name}")
-    #     else:
-    #         print(f"📥 [{i}/{len(coupons)}] Downloaded: {name}")
-    # else:
-    #     print(f"⚠️ [{i}/{len(coupons)}] No image for: {name}")
+        if cropped:
+            print(f"📥 [{i}/{len(coupons)}] Downloaded & cropped: {name}")
+        else:
+            print(f"📥 [{i}/{len(coupons)}] Downloaded: {name}")
+    else:
+        print(f"⚠️ [{i}/{len(coupons)}] No image for: {name}")
     
     # Build CSV row with ALL available fields
     result = {
