@@ -117,13 +117,13 @@ print("5. Find and copy the cookie values:\n")
 print("📋 Cookie 1: 'datadome'")
 print("   → Look for cookie named 'datadome' in the list")
 print("   → Copy the entire 'Value' field (long string)\n")
-datadome_value = "D7mHsq0PxE1ogyFrqh1T_QAyNIgzOJJ8aSUoO4h0lc8VyVSbYcjy4SMM4nWzBmP20OS5O42JvLexPblyrhnyWplRSP6amqzn1ZS9OBAogLj2cmiy7Q6HHMhHofMEWN77"
+datadome_value = input("Paste datadome cookie value: ").strip()
 
 # Get ppdtk cookie
 print("\n📋 Cookie 2: 'ppdtk'")
 print("   → Look for cookie named 'ppdtk' in the list")
 print("   → Copy the entire 'Value' field\n")
-ppdtk_value = "8IFussq3MKBA/cnUbSnLmKioY8S4k4VT2wAstM3ueByTR8kGY22bgwKqm2lOFpfL"
+ppdtk_value = input("Paste ppdtk cookie value: ").strip()
 
 print("\n✅ Cookies received! Starting scraper...\n")
 print("=" * 70)
