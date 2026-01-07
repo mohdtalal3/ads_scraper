@@ -532,8 +532,8 @@ def save_to_csv(products_data: List[Dict], csv_file: Path, images_dir: Path, car
             image_path = images_dir / image_filename
             
             print(f"   📥 [{idx}/{len(products_data)}] Downloading: {tcin}", end="")
-            # success = download_image(primary_image_url, image_path)
-            # print(" ✓" if success else " ✗")
+            success = download_image(primary_image_url, image_path)
+            print(" ✓" if success else " ✗")
         
         # Prepare CSV row
         csv_row = {
