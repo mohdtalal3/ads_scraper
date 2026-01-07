@@ -157,8 +157,22 @@ def sanitize_folder_name(name):
 # -------------------------
 # HTML FETCHING
 # -------------------------
-def fetch_html_from_url(url: str) -> str:
-    """Fetch HTML content from a Target URL."""
+def extract_page_code_from_url(url: str) -> str:
+    """Extract the page code (e.g., 'o9rnh') from Target URL."""
+    # Match pattern like /N-o9rnh, /a-xyz, /b-123, etc. (any single char followed by hyphen and code)
+    match = re.search(r'/[a-zA-Z]-([a-zA-Z0-9]+)', url)
+    if match:
+        page_code = match.group(1)
+        print(f"📝 Extracted page code: {page_code}")
+        return page_code
+    
+    # Fallback to default
+    print(f"⚠️ Could not extract page code from URL, using default: o9rnh")
+    return "o9rnh"
+
+
+def fetch_html_from_url(url: str) -> tuple[str, str]:
+    """Fetch HTML content from a Target URL and return (html_content, page_code)."""
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -171,21 +185,18 @@ def fetch_html_from_url(url: str) -> str:
     }
     
     print(f"🌐 Fetching HTML from URL...")
-    print(f"   {url}")
+    print(f"   {url}\n")
+    
+    # Extract page code from URL
+    page_code = extract_page_code_from_url(url)
     
     try:
         response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
         
-        print(f"✅ Successfully fetched HTML (Status: {response.status_code})")
+        print(f"✅ Successfully fetched HTML (Status: {response.status_code})\n")
         
-        # # Save HTML to file for backup
-        # html_filename = "target_page.html"
-        # with open(html_filename, "w", encoding="utf-8") as f:
-        #     f.write(response.text)
-        # print(f"💾 Saved HTML backup to: {html_filename}\n")
-        
-        return response.text
+        return response.text, page_code
         
     except requests.exceptions.RequestException as e:
         print(f"❌ Error fetching URL: {e}")
@@ -296,7 +307,7 @@ def extract_tabbed_carousel(content: Dict, slot_id: str, components: List) -> Op
 # -------------------------
 # API FETCHING
 # -------------------------
-def fetch_products(placement_id: str, category_id: Optional[str], slingshot_component_id: Optional[str] = None, store_id: str = "1380", max_retries: int = 3) -> Dict[str, Any]:
+def fetch_products(placement_id: str, category_id: Optional[str], slingshot_component_id: Optional[str] = None, page_code: str = "o9rnh", store_id: str = "1380", max_retries: int = 3) -> Dict[str, Any]:
     """Fetch products from Target API with retry logic."""
     url = "https://redsky.target.com/redsky_aggregations/v1/web/general_recommendations_placement_v1"
     
@@ -304,7 +315,7 @@ def fetch_products(placement_id: str, category_id: Optional[str], slingshot_comp
         "channel": "WEB",
         "include_sponsored_recommendations": "false",
         "key": "9f36aeafbe60771e321a7cc95a78140772ab3e96",
-        "page": "/c/o9rnh",
+        "page": f"/c/{page_code}",
         "placement_id": placement_id,
         "pricing_store_id": store_id,
         "purchasable_store_ids": f"{store_id},1461,2174,778,2129",
@@ -360,7 +371,7 @@ def fetch_products(placement_id: str, category_id: Optional[str], slingshot_comp
 # -------------------------
 # DATA PROCESSING & CSV EXPORT
 # -------------------------
-def process_and_save_carousel(carousel: Dict, carousel_index: int, total_carousels: int, store_id: str):
+def process_and_save_carousel(carousel: Dict, carousel_index: int, total_carousels: int, page_code: str, store_id: str):
     """Process a single carousel and save to CSV with images."""
     
     headline = clean_text(carousel.get("headline", f"carousel_{carousel_index}"))
@@ -393,6 +404,7 @@ def process_and_save_carousel(carousel: Dict, carousel_index: int, total_carouse
             carousel["placement_id"],
             carousel.get("category_id"),
             carousel.get("slingshot_component_id"),
+            page_code,
             store_id
         )
         
@@ -422,6 +434,7 @@ def process_and_save_carousel(carousel: Dict, carousel_index: int, total_carouse
                 tab["placement_id"],
                 tab.get("category_id"),
                 carousel.get("slingshot_component_id"),
+                page_code,
                 store_id
             )
             
@@ -519,8 +532,8 @@ def save_to_csv(products_data: List[Dict], csv_file: Path, images_dir: Path, car
             image_path = images_dir / image_filename
             
             print(f"   📥 [{idx}/{len(products_data)}] Downloading: {tcin}", end="")
-            success = download_image(primary_image_url, image_path)
-            print(" ✓" if success else " ✗")
+            # success = download_image(primary_image_url, image_path)
+            # print(" ✓" if success else " ✗")
         
         # Prepare CSV row
         csv_row = {
@@ -582,7 +595,7 @@ def save_to_csv(products_data: List[Dict], csv_file: Path, images_dir: Path, car
 # -------------------------
 # MAIN SCRAPER
 # -------------------------
-def scrape_all_carousels(html_content: str, store_id: str = "1380"):
+def scrape_all_carousels(html_content: str, page_code: str, store_id: str = "1380"):
     """Main function to scrape carousels and save to CSV."""
     
     # Extract carousels
@@ -600,7 +613,7 @@ def scrape_all_carousels(html_content: str, store_id: str = "1380"):
     # Process each carousel
     for i, carousel in enumerate(carousels, 1):
         try:
-            process_and_save_carousel(carousel, i, len(carousels), store_id)
+            process_and_save_carousel(carousel, i, len(carousels), page_code, store_id)
         except Exception as e:
             print(f"\n❌ ERROR processing carousel {i}: {e}")
             import traceback
@@ -632,11 +645,11 @@ if __name__ == "__main__":
     print()
     
     try:
-        # Fetch HTML from URL
-        html_content = fetch_html_from_url(url)
+        # Fetch HTML from URL and extract page code
+        html_content, page_code = fetch_html_from_url(url)
         
         # Scrape carousels
-        scrape_all_carousels(html_content, store_id=STORE_ID)
+        scrape_all_carousels(html_content, page_code, store_id=STORE_ID)
         
     except Exception as e:
         print(f"\n❌ FATAL ERROR: {e}")
