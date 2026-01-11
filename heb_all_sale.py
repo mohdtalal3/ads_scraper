@@ -257,7 +257,7 @@ def fetch_all_products(build_id, max_retries=3):
     else:
         print("⚠️ No visual components found in response")
         return all_products
-    return all_products
+    #return all_products
     
     # Now fetch remaining pages (2 through total_pages)
     for page_num in range(2, total_pages + 1):
