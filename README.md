@@ -3,7 +3,7 @@
 This Python project downloads flyers, product images, and saves product data to CSV files from multiple grocery store chains.
 
 ## 🏪 Supported Stores
-
+https://www.kroger.com/atlas/v1/shoppable-weekly-deals/deals?filter.circularId=47d1b77f-8af9-4f90-b6ba-d44835b1ac71&filter.adGroupName.like=&fields.ads=
 ### 1. **Publix** (`publix.py`)
 Complete Publix weekly ads scraper with store-specific data and flyer images.
 

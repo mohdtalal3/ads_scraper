@@ -119,11 +119,6 @@ print("   → Look for cookie named 'datadome' in the list")
 print("   → Copy the entire 'Value' field (long string)\n")
 datadome_value = input("Paste datadome cookie value: ").strip()
 
-# Get ppdtk cookie
-print("\n📋 Cookie 2: 'ppdtk'")
-print("   → Look for cookie named 'ppdtk' in the list")
-print("   → Copy the entire 'Value' field\n")
-ppdtk_value = input("Paste ppdtk cookie value: ").strip()
 
 print("\n✅ Cookies received! Starting scraper...\n")
 print("=" * 70)
@@ -261,7 +256,7 @@ def download_image(url, path, auto_crop=True, max_retries=3):
 # -----------------------------
 # Create persistent session
 # -----------------------------
-session = requests.Session(impersonate="chrome131")
+session = requests.Session(impersonate="chrome107")
 
 # 🔑 Set cookies from user input
 session.cookies.set(
@@ -295,26 +290,25 @@ if not page_info['peapod_product_group_ids']:
 product_group_id = page_info['peapod_product_group_ids'][0]
 page_title = page_info['page_title'] or page_key.upper()
 
-# Clean page title for folder name (remove special characters)
-folder_prefix = "".join(c if c.isalnum() or c in (' ', '_') else '' for c in page_title)
-folder_prefix = "_".join(folder_prefix.split())  # Replace spaces with underscores
+# Use page_key for folder name instead of page_title
+folder_prefix = page_key
 
 print(f"\n  ✅ Will scrape products from group: {product_group_id}")
 print(f"  📁 Folder prefix: {folder_prefix}\n")
 
 
-session.cookies.set(
-    name="ppdtk",
-    value=ppdtk_value,
-    domain=".foodlion.com",
-    path="/"
-)
+# session.cookies.set(
+#     name="ppdtk",
+#     value=ppdtk_value,
+#     domain=".foodlion.com",
+#     path="/"
+# )
 # -----------------------------
 # STEP 2: Call products API with pagination
 # -----------------------------
 print("[2] Calling products API with pagination...\n")
 
-API_URL = "https://foodlion.com/api/v6.0/products/363428687/50001980"
+API_URL = "https://foodlion.com/api/v6.0/products/2/50002071"
 
 PARAMS = {
     "sort": "bestMatch asc",
@@ -553,20 +547,20 @@ for i, product in enumerate(products, 1):
     image_url = image_xlarge or image_large or image_medium or image_small
     
     if image_url:
-        # Create filename: FoodLion_prodid_upc.png
-        image_filename = f"FoodLion_{prod_id}_{upc}.png"
+        # Create filename: prodid_upc.png
+        image_filename = f"{prod_id}_{upc}.png"
         img_path = folder_path / image_filename
         
         # # Download and crop image
-        cropped = download_image(image_url, img_path)
+        #cropped = download_image(image_url, img_path)
         local_image_path = image_filename
         
-        if cropped:
-            print(f"📥 [{i}/{len(products)}] Downloaded & cropped: {name}")
-        else:
-            print(f"📥 [{i}/{len(products)}] Downloaded: {name}")
-    else:
-        print(f"⚠️ [{i}/{len(products)}] No image for: {name}")
+    #     if cropped:
+    #         print(f"📥 [{i}/{len(products)}] Downloaded & cropped: {name}")
+    #     else:
+    #         print(f"📥 [{i}/{len(products)}] Downloaded: {name}")
+    # else:
+    #     print(f"⚠️ [{i}/{len(products)}] No image for: {name}")
     
     # Extract primary coupon (first one)
     primary_coupon = product.get("coupon", {})

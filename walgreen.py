@@ -56,7 +56,7 @@ def format_date(date_str):
 # -------------------------------------------------------
 # Helper: Generate human-readable price text from pricing template
 # -------------------------------------------------------
-def generate_price_text(pricing_template_id, data_columns, pricing_templates_map):
+def generate_price_text(pricing_template_id, data_columns, pricing_templates_map, pricing_header="", pricing_body=""):
     """
     Generate human-readable price text by parsing newNativeConfig and replacing datakeys.
     
@@ -64,6 +64,8 @@ def generate_price_text(pricing_template_id, data_columns, pricing_templates_map
         pricing_template_id: The pricing template ID
         data_columns: Dictionary of data column values
         pricing_templates_map: Map of template IDs to template data (with newNativeConfig)
+        pricing_header: Pricing header text to remove from result
+        pricing_body: Pricing body text to remove from result
     
     Returns:
         Human-readable price text string
@@ -82,7 +84,7 @@ def generate_price_text(pricing_template_id, data_columns, pricing_templates_map
         return ""
     
     # Parse the config and replace datakeys with actual values
-    return parse_native_config_to_text(native_config, data_columns)
+    return parse_native_config_to_text(native_config, data_columns, pricing_header, pricing_body)
 
 
 # -------------------------------------------------------
@@ -278,7 +280,7 @@ def build_pricing_templates_map(collections_data):
     return templates_map
 
 
-def parse_native_config_to_text(native_config, data_columns):
+def parse_native_config_to_text(native_config, data_columns, pricing_header="", pricing_body=""):
     """
     Parse newNativeConfig and replace [datakey-FieldName] with actual values.
     Preserves all text (like 'to', 'or', '$', etc.) and only replaces data placeholders.
@@ -305,6 +307,32 @@ def parse_native_config_to_text(native_config, data_columns):
     text = re.sub(r'\[datakey-([^\]]+)\]', replace_datakey, text)
     
     # Clean up extra whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    # Remove pricing_header text if provided (do this before removing "with myWalgreens")
+    if pricing_header and pricing_header.strip():
+        # Escape special regex characters in the header
+        escaped_header = re.escape(pricing_header.strip())
+        text = re.sub(escaped_header, '', text, flags=re.IGNORECASE)
+    
+    # Remove pricing_body text if provided
+    if pricing_body and pricing_body.strip():
+        # Escape special regex characters in the body
+        escaped_body = re.escape(pricing_body.strip())
+        text = re.sub(escaped_body, '', text, flags=re.IGNORECASE)
+    
+    # Remove unwanted phrases
+    unwanted_phrases = [
+        r'\s*with myWalgreens\s*',
+        r'\s*with\s+myWalgreens\s*',
+        r'\*\s*with myWalgreens\s*',
+        r'\s*\*+\s*',  # Remove asterisks with surrounding spaces
+    ]
+    
+    for phrase in unwanted_phrases:
+        text = re.sub(phrase, ' ', text, flags=re.IGNORECASE)
+    
+    # Clean up extra whitespace again after removals
     text = re.sub(r'\s+', ' ', text).strip()
     
     return text
@@ -434,13 +462,17 @@ def main():
                 
                 # Generate human-readable price text from pricing template and data columns
                 pricing_template_id = offer.get("pricingTemplateId", "")
-                offer_record["price_text"] = generate_price_text(pricing_template_id, data_columns, pricing_templates_map)
+                pricing_header = offer.get("pricingHeader", "")
+                pricing_body = offer.get("pricingBody", "")
+                offer_record["price_text"] = generate_price_text(pricing_template_id, data_columns, pricing_templates_map, pricing_header, pricing_body)
                 
                 # Add image URL and placeholder at the end
                 offer_record["image_url"] = offer.get("imageUrl", "")
                 offer_record["image"] = ""
                 
-                all_offers.append(offer_record)
+                # Only add offers that have an image URL
+                if offer_record["image_url"] and offer_record["image_url"].strip():
+                    all_offers.append(offer_record)
                 
         except Exception as e:
             print(f"❌ Failed collection {cid}: {e}")
@@ -457,77 +489,70 @@ def main():
         print("❌ No offers found.")
         return
     
-    # Group offers by collection
-    collections_map = {}
-    for offer in all_offers:
-        coll_name = offer["flyer_name"]
-        if coll_name not in collections_map:
-            collections_map[coll_name] = []
-        collections_map[coll_name].append(offer)
+    # Determine overall date range from all offers
+    start_dates = [o["start_date"] for o in all_offers if o["start_date"]]
+    end_dates = [o["end_date"] for o in all_offers if o["end_date"]]
     
-    print(f"\n📁 Creating folders for {len(collections_map)} collections...\n")
+    if start_dates and end_dates:
+        valid_from = format_date(min(start_dates))
+        valid_to = format_date(max(end_dates))
+    else:
+        today = datetime.now().strftime("%m-%d-%y")
+        valid_from = today
+        valid_to = today
     
-    # Process each collection separately
-    for collection_name, collection_offers in collections_map.items():
-        # Determine date range for this collection
-        start_dates = [o["start_date"] for o in collection_offers if o["start_date"]]
-        end_dates = [o["end_date"] for o in collection_offers if o["end_date"]]
+    # Create single folder for all collections: Walgreens/Walgreens_WeeklyAd_MM-DD-YY_MM-DD-YY/
+    folder_name = f"Walgreens_WeeklyAd_{valid_from}_{valid_to}"
+    folder_path = base_folder / folder_name
+    folder_path.mkdir(exist_ok=True)
+    
+    print(f"\n📂 Creating single folder for all offers")
+    print(f"   Folder: {folder_path}")
+    print(f"   Total offers: {len(all_offers)}")
+    
+    # Download images for all offers
+    downloaded_count = 0
+    for idx, offer in enumerate(all_offers, 1):
+        image_url = offer.get("image_url", "")
         
-        if start_dates and end_dates:
-            valid_from = format_date(min(start_dates))
-            valid_to = format_date(max(end_dates))
-        else:
-            today = datetime.now().strftime("%m-%d-%y")
-            valid_from = today
-            valid_to = today
-        
-        # Clean collection name for folder
-        safe_collection_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in collection_name)
-        
-        # Create folder structure: Walgreens/Walgreens_CollectionName_MM-DD-YY_MM-DD-YY/
-        folder_name = f"Walgreens_{safe_collection_name}_{valid_from}_{valid_to}"
-        folder_path = base_folder / folder_name
-        folder_path.mkdir(exist_ok=True)
-        
-        print(f"📂 Processing collection: {collection_name}")
-        print(f"   Folder: {folder_path}")
-        print(f"   Offers: {len(collection_offers)}")
-        
-        # Download images for this collection
-        downloaded_count = 0
-        for idx, offer in enumerate(collection_offers, 1):
-            image_url = offer.get("image_url", "")
+        if image_url and image_url.strip():
+            # Create filename: Walgreens_offerid_uniqueid.png
+            offer_id = offer.get("offer_id", "")
+            unique_id = offer.get("unique_id", "").replace("/", "_").replace("\\", "_")
+            image_filename = f"Walgreens_{offer_id}_{unique_id}.png"
+            img_path = folder_path / image_filename
             
-            if image_url and image_url.strip():
-                # Create filename: Walgreens_offerid_uniqueid.png
-                offer_id = offer.get("offer_id", "")
-                unique_id = offer.get("unique_id", "").replace("/", "_").replace("\\", "_")
-                image_filename = f"Walgreens_{offer_id}_{unique_id}.png"
-                img_path = folder_path / image_filename
-                
-                # Download and crop image
-                print(f"   📥 Downloading {idx}/{len(collection_offers)}: {image_filename}")
-                cropped = download_image(image_url, img_path)
-                offer["image"] = image_filename
-                downloaded_count += 1
-            else:
-                offer["image"] = ""
-        
-        print(f"   ✅ Downloaded {downloaded_count} images")
-        
-        # Save to CSV for this collection
-        csv_filename = f"{folder_name}.csv"
-        csv_path = folder_path / csv_filename
-        
-        with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-            if collection_offers:
-                writer = csv.DictWriter(f, fieldnames=collection_offers[0].keys())
-                writer.writeheader()
-                writer.writerows(collection_offers)
-        
-        print(f"   ✅ Saved CSV: {csv_filename}\n")
+            # Download and crop image
+            print(f"   📥 Downloading {idx}/{len(all_offers)}: {image_filename}")
+            #cropped = download_image(image_url, img_path)
+            offer["image"] = image_filename
+            downloaded_count += 1
+        else:
+            offer["image"] = ""
     
-    print(f"🎯 All done! Processed {len(collections_map)} collections with {len(all_offers)} total offers")
+    print(f"   ✅ Downloaded {downloaded_count} images")
+    
+    # Save all offers to single CSV
+    csv_filename = f"{folder_name}.csv"
+    csv_path = folder_path / csv_filename
+    
+    # Collect all unique field names from all offers
+    all_fieldnames = set()
+    for offer in all_offers:
+        all_fieldnames.update(offer.keys())
+    
+    # Sort fieldnames for consistent column order
+    fieldnames = sorted(all_fieldnames)
+    
+    with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
+        if all_offers:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(all_offers)
+    
+    print(f"   ✅ Saved CSV: {csv_filename}\n")
+    
+    print(f"🎯 All done! Processed {len(all_offers)} total offers in single folder")
 
 
 if __name__ == "__main__":  

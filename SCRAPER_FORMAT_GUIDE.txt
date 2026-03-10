@@ -1,0 +1,254 @@
+================================================================================
+                    SCRAPER STANDARDIZED FORMAT GUIDE
+================================================================================
+Last Updated: October 13, 2025
+
+This document defines the consistent format for all store scrapers to ensure
+uniformity in folder structure, file naming, and data organization.
+
+================================================================================
+1. FOLDER STRUCTURE
+================================================================================
+
+Root Structure:
+  {store_name_lowercase}/
+    └── {StoreName}_{FlyerName}_{StartDate}_{EndDate}/
+        ├── {StoreName}_{FlyerName}_{StartDate}_{EndDate}.csv
+        ├── {StoreName}_{FlyerName}_{StartDate}_{EndDate}_flyer_page1.jpg
+        ├── {StoreName}_{FlyerName}_{StartDate}_{EndDate}_flyer_page2.jpg
+        ├── {flyerId}_{productId}.jpg
+        └── ... (more product images)
+
+Examples:
+  aldi/
+    └── Aldi_WeeklyAd_10-08-25_10-14-25/
+  
+  publix/
+    └── Publix_WeeklyAd_10-08-25_10-14-25/
+  
+  target/
+    └── Target_WeeklyAd_10-08-25_10-14-25/
+
+================================================================================
+2. DATE FORMAT
+================================================================================
+
+Format: MM-DD-YY
+Example: 10-08-25 (October 8, 2025)
+
+Date Range Separator: underscore (_)
+Example: 10-08-25_10-14-25
+
+Python Code:
+  from datetime import datetime
+  formatted_date = datetime.strptime(date_str, "%Y-%m-%d").strftime("%m-%d-%y")
+
+================================================================================
+3. FILE NAMING CONVENTIONS
+================================================================================
+
+A. CSV File (Product Data)
+   Format: {StoreName}_{FlyerName}_{StartDate}_{EndDate}.csv
+   Example: Aldi_WeeklyAd_10-08-25_10-14-25.csv
+
+B. Flyer Page Images
+   Format: {StoreName}_{FlyerName}_{StartDate}_{EndDate}_flyer_page{N}.jpg
+   Example: Publix_WeeklyAd_10-08-25_10-14-25_flyer_page1.jpg
+   Note: Page number starts at 1 (not 0)
+
+C. Product Images
+   Format: {flyerId}_{productId}.jpg
+   Example: 12345_67890.jpg
+   Note: Use clean IDs (replace special characters with underscores)
+
+D. PDF Files (if applicable)
+   Format: {StoreName}_{FlyerName}_{StartDate}_{EndDate}_flyer.pdf
+   Example: Aldi_WeeklyAd_10-08-25_10-14-25_flyer.pdf
+
+================================================================================
+4. CSV STRUCTURE
+================================================================================
+
+Required Columns (in order):
+  1. flyer_id       - Unique identifier for the flyer
+  2. flyer_name     - Name of the promotion/flyer (e.g., "WeeklyAd")
+  3. id             - Unique identifier for the product/deal
+  4. name           - Product/deal name
+  5. price          - Price or savings information
+  6. valid_from     - Start date (format: YYYY-MM-DD or MM-DD-YY)
+  7. valid_to       - End date (format: YYYY-MM-DD or MM-DD-YY)
+  8. image          - Filename of product image (just filename, not full path)
+
+Optional Columns (add after required columns):
+  - description
+  - additional_deal_info
+  - category
+  - brand
+  - unit_price
+  - limit_per_customer
+
+Example CSV Row:
+  12345,WeeklyAd,67890,Organic Bananas,$2.99,2025-10-08,2025-10-14,12345_67890.jpg
+
+================================================================================
+5. SPECIAL CHARACTER HANDLING
+================================================================================
+
+Function to sanitize filenames and folder names:
+
+  def safe_filename(name):
+      """Sanitize file/folder names."""
+      return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in name)
+
+Rules:
+  - Keep: alphanumeric characters, hyphens (-), underscores (_)
+  - Replace with underscore: spaces, special characters, punctuation
+  - Remove: leading/trailing whitespace
+
+Examples:
+  "Weekly Ad" → "WeeklyAd" (space removed in flyer names)
+  "Extra Savings!" → "Extra_Savings_"
+  "BOGO 50%" → "BOGO_50_"
+
+For IDs in filenames:
+  def clean_id(flyer_id):
+      """Replace dashes and other special characters with underscores"""
+      if not flyer_id:
+          return "unknown"
+      return re.sub(r'[^a-zA-Z0-9]', '_', str(flyer_id))
+
+================================================================================
+6. PYTHON CODE TEMPLATE
+================================================================================
+
+from pathlib import Path
+from datetime import datetime
+import re
+
+def safe_filename(name):
+    """Sanitize file/folder names."""
+    return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in name)
+
+def clean_id(item_id):
+    """Replace dashes and other special characters with underscores"""
+    if not item_id:
+        return "unknown"
+    return re.sub(r'[^a-zA-Z0-9]', '_', str(item_id))
+
+def format_date(date_str):
+    """Format date to MM-DD-YY"""
+    dt = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%SZ")
+    return dt.strftime("%m-%d-%y")
+
+# Create folder structure
+store_name = "aldi"  # or "publix", "target", etc.
+flyer_name = "WeeklyAd"
+start_date = "10-08-25"
+end_date = "10-14-25"
+
+base_folder = Path(store_name.lower())
+base_folder.mkdir(exist_ok=True)
+
+flyer_folder = base_folder / f"{store_name.capitalize()}_{flyer_name}_{start_date}_{end_date}"
+flyer_folder.mkdir(exist_ok=True)
+
+# CSV filename
+csv_filename = f"{store_name.capitalize()}_{flyer_name}_{start_date}_{end_date}.csv"
+csv_path = flyer_folder / csv_filename
+
+# Flyer page image filename
+page_num = 1
+flyer_page = f"{store_name.capitalize()}_{flyer_name}_{start_date}_{end_date}_flyer_page{page_num}.jpg"
+
+# Product image filename
+flyer_id = clean_id("12345")
+product_id = clean_id("67890")
+product_image = f"{flyer_id}_{product_id}.jpg"
+
+================================================================================
+7. DOWNLOAD BEST PRACTICES
+================================================================================
+
+A. Image Download with Retry Logic:
+   - Max retries: 3
+   - Timeout: 30 seconds (product images), 60 seconds (flyer pages)
+   - Print progress every 10 items
+
+B. Error Handling:
+   - Warn on failed downloads, but continue processing
+   - Log skipped items
+   - Don't stop entire process for single failures
+
+Example Download Function:
+
+  def download_with_retry(url, path, max_retries=3, timeout=30):
+      """Download file with retry logic"""
+      for retry in range(max_retries):
+          try:
+              response = requests.get(url, timeout=timeout)
+              response.raise_for_status()
+              with open(path, "wb") as f:
+                  f.write(response.content)
+              return True
+          except Exception as e:
+              if retry < max_retries - 1:
+                  print(f"⚠️ Retry {retry + 1}/{max_retries}")
+              else:
+                  print(f"❌ Failed after {max_retries} attempts: {e}")
+                  return False
+
+================================================================================
+8. STORE-SPECIFIC EXAMPLES
+================================================================================
+
+ALDI:
+  aldi/Aldi_WeeklyAd_10-08-25_10-14-25/
+    ├── Aldi_WeeklyAd_10-08-25_10-14-25.csv
+    ├── Aldi_WeeklyAd_10-08-25_10-14-25_flyer_page1.jpg
+    └── 12345_67890.jpg
+
+PUBLIX:
+  publix/Publix_WeeklyAd_10-08-25_10-14-25/
+    ├── Publix_WeeklyAd_10-08-25_10-14-25.csv
+    ├── Publix_WeeklyAd_10-08-25_10-14-25_flyer_page1.jpg
+    └── 1234_5678.jpg
+
+TARGET (future):
+  target/Target_WeeklyAd_10-08-25_10-14-25/
+    ├── Target_WeeklyAd_10-08-25_10-14-25.csv
+    ├── Target_WeeklyAd_10-08-25_10-14-25_flyer_page1.jpg
+    └── 98765_43210.jpg
+
+================================================================================
+9. CONSISTENCY CHECKLIST
+================================================================================
+
+Before finalizing any scraper, verify:
+  ✓ Base folder uses lowercase store name (aldi/, publix/, target/)
+  ✓ Subfolder uses capitalized store name with underscores
+  ✓ Dates use MM-DD-YY format
+  ✓ Date ranges use underscore separator (not dash)
+  ✓ CSV filename matches folder name
+  ✓ Flyer pages use "_flyer_page{N}" format
+  ✓ Product images use "{flyerId}_{productId}.jpg" format
+  ✓ CSV has all required columns
+  ✓ Image filenames in CSV are relative (no paths)
+  ✓ Special characters are sanitized
+  ✓ Retry logic is implemented for downloads
+  ✓ Progress indicators are shown during processing
+
+================================================================================
+10. NOTES
+================================================================================
+
+- Always use Path() from pathlib for cross-platform compatibility
+- Store only filenames (not full paths) in CSV image columns
+- Keep flyer names consistent (e.g., "WeeklyAd", not "weekly ad" or "Weekly_Ad")
+- Use makedirs with exist_ok=True to avoid errors on folder creation
+- Test with at least 2 different date ranges to ensure consistency
+- Validate CSV output before committing
+
+================================================================================
+END OF GUIDE
+================================================================================
+

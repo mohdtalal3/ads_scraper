@@ -319,7 +319,7 @@ def save_to_csv(promotion_info, products_data, output_folder):
         if page_url:
             page_filename = f"Target_{promotion_title}_page_{page_num}.png"
             page_path = folder_path / page_filename
-            download_image(page_url, page_path, auto_crop=True)
+            #download_image(page_url, page_path, auto_crop=True)
     
     # Download product images
     print(f"  🖼️ Downloading product images...")
@@ -335,7 +335,7 @@ def save_to_csv(promotion_info, products_data, output_folder):
             img_path = folder_path / image_filename
             
             # Download and crop image
-            download_image(image_url, img_path, auto_crop=True)
+            #download_image(image_url, img_path, auto_crop=True)
             product["image"] = image_filename
             downloaded_count += 1
         else:
