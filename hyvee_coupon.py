@@ -197,7 +197,7 @@ def fetch_coupons(store_id=1759):
 # --------------------------------------------------
 # CSV EXPORT
 # --------------------------------------------------
-def save_to_csv(coupons_data, csv_file, images_dir):
+def save_to_csv(coupons_data, csv_file, output_dir):
     """Save coupons to CSV with image downloading."""
     
     coupons = coupons_data.get("data", {}).get("couponsV4", [])
@@ -229,7 +229,7 @@ def save_to_csv(coupons_data, csv_file, images_dir):
         image_filename = ""
         if image_url:
             image_filename = f"{idx:03d}_{coupon_id[:8]}.png"
-            image_path = images_dir / image_filename
+            image_path = output_dir / image_filename
             
             print(f"   📥 [{idx}/{len(coupons)}] Downloading: {coupon_id[:8]}", end="")
             success = download_image(image_url, image_path)
@@ -324,8 +324,7 @@ if __name__ == "__main__":
         base_dir = Path("HyVee_Coupons")
         folder_name = f"HyVee_Coupons_{start_date}_to_{end_date}"
         output_dir = base_dir / folder_name
-        images_dir = output_dir / "images"
-        images_dir.mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
         
         csv_file = output_dir / f"{folder_name}.csv"
         
@@ -334,7 +333,7 @@ if __name__ == "__main__":
         print()
         
         # Save to CSV with images
-        save_to_csv(data, csv_file, images_dir)
+        save_to_csv(data, csv_file, output_dir)
         
         print()
         print("=" * 80)
