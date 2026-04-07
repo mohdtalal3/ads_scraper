@@ -319,7 +319,7 @@ def save_to_csv(promotion_info, products_data, output_folder):
         if page_url:
             page_filename = f"Target_{promotion_title}_page_{page_num}.png"
             page_path = folder_path / page_filename
-            #download_image(page_url, page_path, auto_crop=True)
+            download_image(page_url, page_path, auto_crop=True)
     
     # Download product images
     print(f"  🖼️ Downloading product images...")
@@ -370,8 +370,8 @@ def main():
     promotions = fetch_promotions(STORE_ID)
     
     # Save promotions list
-    # with open("target_promotions.json", "w") as f:
-    #     json.dump(promotions, f, indent=2)
+    with open("target_promotions.json", "w") as f:
+        json.dump(promotions, f, indent=2)
     
     # Step 2: Process each promotion
     all_products = []
@@ -383,9 +383,9 @@ def main():
         products_data = fetch_promotion_products(promotion_id, promo)
         
         # Save full JSON
-        # json_filename = f"target_{promotion_id}_full.json"
-        # with open(json_filename, "w") as f:
-        #     json.dump(products_data, f, indent=2)
+        json_filename = f"target_{promotion_id}_full.json"
+        with open(json_filename, "w") as f:
+            json.dump(products_data, f, indent=2)
         
         # Save to CSV
         save_to_csv(promo, products_data, base_folder)

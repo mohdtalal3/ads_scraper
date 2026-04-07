@@ -131,11 +131,11 @@ def scrape_family_dollar(store_code="19052"):
             pdf_filename = f"{flyer_base_name}_flyer.pdf"
             pdf_path = folder_path / pdf_filename
             print("  ⬇️ Downloading flyer PDF...")
-           # download_file(pdf_url, pdf_path)
+            download_file(pdf_url, pdf_path)
             print("  ✅ Flyer PDF saved.")
 
             # Convert PDF → images
-           # convert_pdf_to_images(pdf_path, folder_path, flyer_base_name)
+            convert_pdf_to_images(pdf_path, folder_path, flyer_base_name)
 
         # Get product data
         print("  🛒 Fetching product data...")

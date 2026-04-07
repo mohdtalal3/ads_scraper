@@ -52,6 +52,10 @@ def fetch_content_container_data(page_key: str, referer_url: str) -> dict:
         "sec-fetch-site": "same-origin"
     }
 
+    from urllib.parse import urlencode
+    full_url = f"{api_url}?{urlencode(params)}"
+    print(f"  🌐 Request URL: {full_url}")
+
     response = session.get(
         api_url,
         params=params,
@@ -308,19 +312,19 @@ print(f"  📁 Folder prefix: {folder_prefix}\n")
 # -----------------------------
 print("[2] Calling products API with pagination...\n")
 
-API_URL = "https://foodlion.com/api/v6.0/products/2/50002071"
+API_URL = "https://foodlion.com/api/v5.0/products/2/50002071"
 
 PARAMS = {
     "sort": "bestMatch asc",
     "filter": f"productGroups:{product_group_id}",
-    "rows": 120,
+    "rows": 25,
     "catTreeId": "",
     "start": 0,
     "flags": "true",
     "facet": "nutrition",
     "substitute": "true",
     "facetExcludeFilter": "true",
-    "includeOutOfStock": "false",
+    "includeOutOfStock": "true",
     "nutrition": "false"
 }
 
