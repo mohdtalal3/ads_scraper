@@ -170,7 +170,7 @@ def convert_pdf_to_images(pdf_path, output_folder, base_name):
 
 
 # ---------- Winn-Dixie Scraper ----------
-def scrape_winndixie(store_code="0560", postal_code="32541"):
+def scrape_winndixie(store_code="0510", postal_code="32541"):
     """Scrape Winn-Dixie flyer and product data."""
     pub_url = "https://dam.flippenterprise.net/flyerkit/publications/winndixie"
     pub_params = {
@@ -194,6 +194,9 @@ def scrape_winndixie(store_code="0560", postal_code="32541"):
     
     # Filter to only process weekly ads
     weekly_flyers = [f for f in flyers if f.get("flyer_type") == "weeklyad"]
+    if not weekly_flyers:
+        print(f"  ⚠️ No 'weeklyad' flyer found — falling back to first available flyer.")
+        weekly_flyers = [flyers[0]]
     print(f"✅ Found {len(flyers)} flyer(s), {len(weekly_flyers)} weekly ad(s).\n")
     
     all_results = []
@@ -328,7 +331,7 @@ def scrape_winndixie(store_code="0560", postal_code="32541"):
 
 # ---------- Main Entry ----------
 if __name__ == "__main__":
-    store_code = "0560"
+    store_code = "0510"
     postal_code = "32541"
     print(f"🚀 Starting Winn-Dixie scraper for store: {store_code} (postal code: {postal_code})\n")
     start_time = time.time()
