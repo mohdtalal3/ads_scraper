@@ -231,11 +231,11 @@ def scrape_meijer(store_code="267", postal_code="10011"):
             pdf_filename = f"{flyer_base_name}_flyer.pdf"
             pdf_path = folder_path / pdf_filename
             print("  ⬇️ Downloading flyer PDF...")
-            download_file(pdf_url, pdf_path)
+            #download_file(pdf_url, pdf_path)
             print("  ✅ Flyer PDF saved.")
 
             # Convert PDF → images
-            convert_pdf_to_images(pdf_path, folder_path, flyer_base_name)
+            #convert_pdf_to_images(pdf_path, folder_path, flyer_base_name)
 
         # Get product data
         print("  🛒 Fetching product data...")
@@ -274,7 +274,7 @@ def scrape_meijer(store_code="267", postal_code="10011"):
             for img_url in images:
                 img_name = f"{flyer_id}_{product_id}.jpg"
                 img_path = folder_path / img_name
-                cropped = download_file(img_url, img_path, auto_crop=True)
+                #cropped = download_file(img_url, img_path, auto_crop=True)
                 img_list.append(img_name)
 
             # Get categories dynamically

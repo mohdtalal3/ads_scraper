@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 import time
 import fitz  # PyMuPDF
-
+import json
 # Family Dollar-specific token
 FAMILY_DOLLAR_ACCESS_TOKEN = "86671e3087ed1ff42de6ccd791b7fe3d"
 
@@ -90,6 +90,8 @@ def scrape_family_dollar(store_code="19052"):
         return []
 
     flyers = response.json()
+    with open("flyers.json", "w", encoding="utf-8") as f:
+        json.dump(flyers, f, ensure_ascii=False, indent=2)
     print(f"✅ Found {len(flyers)} flyer(s).\n")
 
     all_results = []
@@ -98,8 +100,8 @@ def scrape_family_dollar(store_code="19052"):
         flyer_id = f["id"]
         flyer_name = f.get("name", "Unknown").replace(" ", "")
         
-        # Change "CurrentAd" to "WeeklyAd"
-        if flyer_name == "CurrentAd":
+        # Change "CurrentAd" / "Current Ad" to "WeeklyAd"
+        if flyer_name.replace(" ", "") == "CurrentAd":
             flyer_name = "WeeklyAd"
         
         valid_from = f["valid_from"].split("T")[0]
@@ -131,11 +133,11 @@ def scrape_family_dollar(store_code="19052"):
             pdf_filename = f"{flyer_base_name}_flyer.pdf"
             pdf_path = folder_path / pdf_filename
             print("  ⬇️ Downloading flyer PDF...")
-            download_file(pdf_url, pdf_path)
+            #download_file(pdf_url, pdf_path)
             print("  ✅ Flyer PDF saved.")
 
             # Convert PDF → images
-            convert_pdf_to_images(pdf_path, folder_path, flyer_base_name)
+            #convert_pdf_to_images(pdf_path, folder_path, flyer_base_name)
 
         # Get product data
         print("  🛒 Fetching product data...")
