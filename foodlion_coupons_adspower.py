@@ -1,41 +1,29 @@
 import json
 import csv
 import os
+import time
+import requests as std_requests
 from datetime import datetime
 from pathlib import Path
 from curl_cffi import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from PIL import Image
 
 # -----------------------------
-# Get cookies from user
+# AdsPower Config
 # -----------------------------
-print("=" * 70)
-print("🍪 FOOD LION COOKIE SETUP")
-print("=" * 70)
-print("\nTo get the required cookies:")
-print("1. Open https://foodlion.com/savings/coupons/browse in Chrome")
-print("2. Press F12 to open DevTools")
-print("3. Go to 'Application' tab (top menu)")
-print("4. In left sidebar: Storage → Cookies → https://foodlion.com")
-print("5. Find and copy the cookie values:\n")
+ADSPOWER_URL = "http://local.adspower.net:50325"
+PROFILE_ID   = "k1bwflca"
+API_KEY      = "b1b13bd691e95f0b66bae68c5aaa65ed0086a2d00df9de37"
 
-# Get DataDome cookie
-print("📋 Cookie 1: 'datadome'")
-print("   → Look for cookie named 'datadome' in the list")
-print("   → Copy the entire 'Value' field (long string)\n")
-datadome_value = input("Paste datadome cookie value: ").strip()
+ADS_HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
-# Get ppdtk cookie
-print("\n📋 Cookie 2: 'ppdtk'")
-print("   → Look for cookie named 'ppdtk' in the list")
-print("   → Copy the entire 'Value' field\n")
-ppdtk_value = input("Paste ppdtk cookie value: ").strip()
-
-print("\n✅ Cookies received! Starting scraper...\n")
-print("=" * 70)
+COUPONS_PAGE = "https://foodlion.com/savings/coupons/browse"
 
 # -----------------------------
-# Base config
+# Base config (same as simple coupon script)
 # -----------------------------
 BASE_HEADERS = {
     "user-agent": (
@@ -45,6 +33,72 @@ BASE_HEADERS = {
     ),
     "accept-language": "en-US,en;q=0.9",
 }
+
+# -----------------------------
+# STEP 0: Start AdsPower browser, extract datadome cookie, close browser
+# -----------------------------
+print("=" * 70)
+print("🌐 FOOD LION COUPONS — AdsPower Mode")
+print("=" * 70)
+print("\n[0] Starting AdsPower browser profile...")
+
+resp = std_requests.get(
+    f"{ADSPOWER_URL}/api/v1/browser/start",
+    params={"user_id": PROFILE_ID},
+    headers=ADS_HEADERS,
+    timeout=30
+).json()
+
+if resp["code"] != 0:
+    raise Exception(f"AdsPower start failed: {resp['msg']}")
+
+chrome_driver = resp["data"]["webdriver"]
+debugger_addr = resp["data"]["ws"]["selenium"]
+
+options = Options()
+options.add_experimental_option("debuggerAddress", debugger_addr)
+driver = webdriver.Chrome(service=Service(chrome_driver), options=options)
+driver.set_script_timeout(60)
+
+print("  ✅ Browser attached")
+print(f"\n[1] Navigating to {COUPONS_PAGE} ...")
+driver.get(COUPONS_PAGE)
+
+# Wait for datadome cookie to appear (up to 30s)
+print("  ⏳ Waiting for DataDome cookie...")
+datadome_value = None
+for _ in range(30):
+    for c in driver.get_cookies():
+        if c["name"] == "datadome":
+            datadome_value = c["value"]
+            break
+    if datadome_value:
+        break
+    time.sleep(1)
+
+if not datadome_value:
+    # Fallback: let user confirm the page loaded and try once more
+    input("  ⏸  Could not auto-detect datadome — press Enter after the page loads in AdsPower browser...")
+    for c in driver.get_cookies():
+        if c["name"] == "datadome":
+            datadome_value = c["value"]
+            break
+
+if not datadome_value:
+    raise RuntimeError("❌ Failed to extract datadome cookie from AdsPower browser")
+
+print(f"  ✅ Got datadome cookie: {datadome_value[:40]}...")
+
+# Stop AdsPower browser — no longer needed
+std_requests.get(
+    f"{ADSPOWER_URL}/api/v1/browser/stop",
+    params={"user_id": PROFILE_ID},
+    headers=ADS_HEADERS,
+    timeout=10
+)
+driver.quit()
+print("  🛑 Browser stopped\n")
+print("=" * 70)
 
 
 # -------------------------------------------------------
@@ -65,101 +119,63 @@ def format_date(date_str):
 # Helper: Auto-crop whitespace from images
 # -------------------------------------------------------
 def auto_crop_whitespace(image_path, threshold=250, margin=10):
-    """
-    Crop white borders from an image using Pillow.
-    
-    Args:
-        image_path: Path to the image file (string or Path object)
-        threshold: Pixel brightness threshold (0-255). Pixels darker than this are content.
-        margin: Extra pixels to keep around detected content
-    
-    Returns:
-        True if cropping was successful, False otherwise
-    """
     try:
         img = Image.open(image_path)
-        
-        # Convert to RGB if necessary
         if img.mode not in ('RGB', 'RGBA'):
             img = img.convert('RGB')
-        
         width, height = img.size
         pixels = img.load()
-        
-        # Find content boundaries by scanning for non-white pixels
         min_x, min_y = width, height
         max_x, max_y = 0, 0
-        
-        # Sample every few pixels for speed
         stride = 10
         found_content = False
-        
         for y in range(0, height, stride):
             for x in range(0, width, stride):
                 pixel = pixels[x, y]
-                # Handle both RGB and RGBA
                 r, g, b = pixel[0], pixel[1], pixel[2]
-                
-                # If pixel is darker than threshold, it's content
                 if r < threshold or g < threshold or b < threshold:
                     found_content = True
                     min_x = min(min_x, x)
                     min_y = min(min_y, y)
                     max_x = max(max_x, x)
                     max_y = max(max_y, y)
-        
         if not found_content or min_x >= max_x or min_y >= max_y:
             img.close()
             return False
-        
-        # Add margin and clamp to image bounds
         min_x = max(0, min_x - margin)
         min_y = max(0, min_y - margin)
         max_x = min(width, max_x + margin)
         max_y = min(height, max_y + margin)
-        
-        # Calculate crop percentage
         original_area = width * height
         cropped_area = (max_x - min_x) * (max_y - min_y)
         crop_pct = ((original_area - cropped_area) / original_area) * 100
-        
-        # Only crop if we're removing more than 1% of the image
         if crop_pct > 1:
-            # Crop the image
             cropped_img = img.crop((min_x, min_y, max_x, max_y))
-            
-            # Save the cropped image, replacing the original
             cropped_img.save(image_path, 'PNG', quality=95, optimize=True)
-            
             img.close()
             cropped_img.close()
-            
             return True
-        
         img.close()
         return False
-        
     except Exception as e:
         print(f"    ⚠️ Auto-crop failed for {os.path.basename(str(image_path))}: {e}")
-# -----------------------------
+
+
 # -------------------------------------------------------
 # Helper: Download image with auto-crop
 # -------------------------------------------------------
 def download_image(url, path, auto_crop=True):
-    """Download an image and optionally auto-crop whitespace."""
     try:
-        resp = session.get(url, timeout=30)
-        if resp.status_code == 200:
+        r = session.get(url, timeout=30)
+        if r.status_code == 200:
             with open(path, "wb") as f:
-                f.write(resp.content)
-            
-            # Auto-crop if requested
+                f.write(r.content)
             if auto_crop:
                 if auto_crop_whitespace(path):
-                    return True  # Successfully cropped
-            return False  # Downloaded but not cropped
+                    return True
+            return False
         else:
-            print(f"  ⚠️ Failed to download image (status {resp.status_code}): {url}")
+            print(f"  ⚠️ Failed to download image (status {r.status_code}): {url}")
             return False
     except Exception as e:
         print(f"  ❌ Error downloading image: {e}")
@@ -167,70 +183,40 @@ def download_image(url, path, auto_crop=True):
 
 
 # -----------------------------
-# Create persistent session
+# Proxy config
 # -----------------------------
-session = requests.Session(impersonate="chrome131")
+STATIC_PROXY = "http://b7e4c783105e0a21fd89__cr.us:bfadc321f9ff54fd@gw.dataimpulse.com:823"
+PROXIES = {
+    "http": STATIC_PROXY,
+    "https": STATIC_PROXY,
+}
 
-# 🔑 Set cookies from user input
+# -----------------------------
+# Build curl_cffi session with extracted datadome cookie
+# (same pattern as foodlion_coupons.py)
+# -----------------------------
+session = requests.Session(impersonate="chrome107")
+session.proxies.update(PROXIES)
+
 session.cookies.set(
     name="datadome",
     value=datadome_value,
     domain=".foodlion.com",
     path="/"
 )
-session.cookies.set(
-    name="ppdtk",
-    value=ppdtk_value,
-    domain=".foodlion.com",
-    path="/"
-)
 
 # -----------------------------
-# STEP 1: GET coupons page
-# -----------------------------
-# print("[1] Loading coupons page with DataDome cookie...")
-
-# r1 = session.get(
-#     "https://foodlion.com/savings/coupons/browse",
-#     headers={
-#         **BASE_HEADERS,
-#         # "accept": "text/html,application/xhtml+xml",
-#         # "upgrade-insecure-requests": "1",
-#         "origin": "https://foodlion.com",
-#         "referer": "https://foodlion.com/savings/coupons/browse",
-#     },
-#     timeout=30
-# )
-# print(r1.text)
-
-
-# print("Cookies after r1:")
-
-# for k, v in session.cookies.items():
-#     print(f"{k} = {v[:40]}...")
-
-
-# print("Browse status:", r1.status_code)
-# print("Cookies after browse:")
-# for c in session.cookies:
-#     print(" ", c.name, "=", c.value[:30], "...")
-
-# # Quick bot check
-# if "captcha-delivery" in r1.text.lower():
-#     raise RuntimeError("❌ DataDome challenge page returned")
-
-# -----------------------------
-# STEP 2: Call coupons API with pagination
+# STEP 2: Call coupons API with pagination (same as simple script)
 # -----------------------------
 print("[2] Calling coupons API with pagination...")
 
 API_URL = (
-    "https://foodlion.com/api/v7.0/coupons/users/363428687/prism/service-locations/1006699/coupons/search?fullDocument=true&unwrap=true"
+    "https://foodlion.com/api/v7.0/coupons/users/2/prism/service-locations/50002071/coupons/search?fullDocument=true&unwrap=true"
 )
 
 PARAMS = {
     "fullDocument": "true",
-    "unwrap": "true"
+    "unwrap": "true",
 }
 
 all_coupons = []
@@ -252,7 +238,7 @@ while True:
     }
 
     print(f"  📡 Fetching coupons {start} to {start + page_size}...")
-    
+
     r2 = session.post(
         API_URL,
         params=PARAMS,
@@ -266,26 +252,21 @@ while True:
         json=PAYLOAD,
         timeout=30
     )
-
+    print(r2.url)
     r2.raise_for_status()
     data = r2.json()
-    
-    # Get pagination info
+
     paging = data.get("paging", {})
     total_coupons = paging.get("total", 0)
-    current_size = paging.get("size", 0)
-    
-    # Get coupons from this page
+
     page_coupons = data.get("coupons", [])
     all_coupons.extend(page_coupons)
-    
+
     print(f"  ✅ Got {len(page_coupons)} coupons (Total so far: {len(all_coupons)}/{total_coupons})")
-    
-    # Check if we have all coupons
+
     if len(all_coupons) >= total_coupons or len(page_coupons) == 0:
         break
-    
-    # Move to next page
+
     start += page_size
 
 print(f"\n✅ Fetched all {len(all_coupons)} coupons\n")
@@ -344,13 +325,13 @@ for i, coupon in enumerate(coupons, 1):
         img_path = folder_path / image_filename
         
         # Download and crop image
-        cropped = download_image(image_url, img_path)
+        #cropped = download_image(image_url, img_path)
         local_image_path = image_filename
         
-        if cropped:
-            print(f"📥 [{i}/{len(coupons)}] Downloaded & cropped: {name}")
-        else:
-            print(f"📥 [{i}/{len(coupons)}] Downloaded: {name}")
+        # if cropped:
+        #     print(f"📥 [{i}/{len(coupons)}] Downloaded & cropped: {name}")
+        # else:
+        #     print(f"📥 [{i}/{len(coupons)}] Downloaded: {name}")
     else:
         print(f"⚠️ [{i}/{len(coupons)}] No image for: {name}")
     
