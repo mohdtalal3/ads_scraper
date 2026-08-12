@@ -1,15 +1,11 @@
 import requests
 import csv
 import os
-import re
-import html as html_lib
 from datetime import datetime
 from pathlib import Path
 import time
 import fitz  # PyMuPDF
 from PIL import Image
-import json
-from seleniumbase import SB
 
 # Winn-Dixie-specific token
 WINNDIXIE_ACCESS_TOKEN = "144f255172b672dfe5bd75d2e8fb126a"
@@ -172,127 +168,6 @@ def convert_pdf_to_images(pdf_path, output_folder, base_name):
         print(f"  ⚠️ Error converting PDF to images: {e}")
 
 
-# ---------- SeleniumBase HTML Fetcher ----------
-def fetch_winndixie_html(save_path="t.html"):
-    """
-    Open the Winn-Dixie weekly ad page using SeleniumBase (undetected mode),
-    scroll through the entire page to trigger lazy-loaded content, then save
-    the full page source to save_path and return the HTML string.
-    """
-    url = "https://www.winndixie.com/weeklyad"
-    print(f"\n🌐 Opening {url} with SeleniumBase...")
-    print("   Scroll through the page if needed, then the script will auto-capture.")
-
-    with SB(uc=True) as sb:
-        sb.activate_cdp_mode(url)
-        sb.sleep(5)  # Wait for initial page load
-
-        # Let the user scroll manually to load all lazy-loaded content
-        input("\n   👆 Scroll through the entire page in the browser, then press ENTER here to capture...")
-
-        # Grab the full page source
-        html_source = sb.get_page_source()
-
-    # Save for debugging / caching
-    with open(save_path, "w", encoding="utf-8") as f:
-        f.write(html_source)
-    print(f"   ✅ Page source saved to {save_path} ({len(html_source):,} chars)")
-    return html_source
-
-
-# ---------- HTML Category Helpers ----------
-def parse_html_categories(html_path="t.html"):
-    """Parse the Winn-Dixie flyer HTML to get {category: [product_names]} mapping."""
-    try:
-        with open(html_path, "r", encoding="utf-8") as f:
-            html = f.read()
-    except FileNotFoundError:
-        return {}
-
-    category_pattern = re.compile(
-        r'class="category-header-content">\s*(.*?)\s*</div>',
-        re.S
-    )
-    categories = list(category_pattern.finditer(html))
-
-    data = {}
-    for i, cat in enumerate(categories):
-        category_name = html_lib.unescape(cat.group(1).strip())
-
-        start = cat.end()
-        end = categories[i + 1].start() if i + 1 < len(categories) else len(html)
-        section_html = html[start:end]
-
-        raw_products = re.findall(
-            r'class="item-card-description-title">\s*(.*?)\s*</p>',
-            section_html,
-            re.S
-        )
-
-        clean_products = []
-        for p in raw_products:
-            # Strip any embedded HTML tags (malformed regex captures)
-            p = re.sub(r'<[^>]+>', '', p)
-            p = html_lib.unescape(p).strip()
-            if p:
-                clean_products.append(p)
-
-        data[category_name] = clean_products
-
-    return data
-
-
-def _clean_name_for_matching(name):
-    """Strip sizes, weights, counts and filler phrases for fuzzy word matching.
-    The original name is never modified — this is used only internally for comparison."""
-    name = html_lib.unescape(name)
-    # Remove measurement patterns with a number: 128 oz, 16.9 oz btls, 7-8.5 oz, 4 lb, 32 ct …
-    name = re.sub(r'\b\d[\d\.\-]*\s*(fl\s*oz|oz|lbs?|ct|pk|pc|btls?|gal|qt|ml)\b', '', name, flags=re.I)
-    # Remove leading pack/piece counts like "24 Pk", "10 Pc", "3 lb Bag"
-    name = re.sub(r'^\d+\s*(pk|pc|ct|lb|oz)\s+', '', name, flags=re.I)
-    # Remove standalone unit words left behind without a number
-    name = re.sub(r'\b(btls?|ea|lb|oz|ct|pk|pc|gal|qt|ml)\b', '', name, flags=re.I)
-    # Remove standalone numbers (quantities left over after unit removal)
-    name = re.sub(r'\b\d+\b', '', name)
-    # Remove common filler phrases that don't help matching
-    name = re.sub(r'\b(value pack|select varieties|mix\s*&?\s*match|previously frozen)\b', '', name, flags=re.I)
-    # Normalize punctuation: collapse & → and, strip special chars
-    name = name.replace('&amp;', ' ').replace('&', ' ')
-    name = re.sub(r"[^a-z0-9\s']", ' ', name.lower())
-    # Collapse whitespace
-    name = re.sub(r'\s+', ' ', name).strip()
-    return name
-
-
-def find_html_category(api_name, html_categories, threshold=0.40):
-    """
-    Return the HTML category name that best matches the API product name,
-    or None if no category exceeds the similarity threshold.
-
-    Similarity = |word intersection| / |word union| (Jaccard on word sets).
-    """
-    api_words = set(_clean_name_for_matching(api_name).split())
-    if not api_words:
-        return None
-
-    best_cat = None
-    best_score = 0.0
-
-    for category, products in html_categories.items():
-        for html_name in products:
-            html_words = set(_clean_name_for_matching(html_name).split())
-            if not html_words:
-                continue
-            intersection = api_words & html_words
-            union = api_words | html_words
-            score = len(intersection) / len(union)
-            if score > best_score:
-                best_score = score
-                best_cat = category
-
-    return best_cat if best_score >= threshold else None
-
-
 # ---------- Winn-Dixie Scraper ----------
 def scrape_winndixie(store_code="0510", postal_code="32541"):
     """Scrape Winn-Dixie flyer and product data."""
@@ -313,9 +188,6 @@ def scrape_winndixie(store_code="0510", postal_code="32541"):
         return []
 
     flyers = response.json()
-    with open("flyers.json", "w", encoding="utf-8") as f:
-        json.dump(flyers, f, ensure_ascii=False, indent=2)
-    input()
     # Filter to only process weekly ads
     weekly_flyers = [f for f in flyers if f.get("flyer_type") == "weeklyad"]
     if not weekly_flyers:
@@ -327,30 +199,26 @@ def scrape_winndixie(store_code="0510", postal_code="32541"):
     for idx, f in enumerate(weekly_flyers, 1):
         flyer_id = f["id"]
         flyer_name = "WeeklyAd"
-        flyer_type = f.get("flyer_type", "")
         valid_from = f["valid_from"].split("T")[0]
         valid_to = f["valid_to"].split("T")[0]
         pdf_url = f.get("pdf_url")
         
-        print(f"📰 Flyer ID: {flyer_id}, Name: {flyer_name}, Type: {flyer_type}, Valid: {valid_from} to {valid_to}")
+        print(f"📰 Flyer ID: {flyer_id}, Name: {flyer_name}, Valid: {valid_from} to {valid_to}")
         
         # Format dates
         from_fmt = datetime.strptime(valid_from, "%Y-%m-%d").strftime("%m-%d-%y")
         to_fmt = datetime.strptime(valid_to, "%Y-%m-%d").strftime("%m-%d-%y")
 
-        # Folder and file base name
-        safe_flyer_name = flyer_name
-        
         # Create base winndixie folder
         base_folder = Path("winndixie")
         base_folder.mkdir(exist_ok=True)
         
         # Create specific flyer folder inside winndixie/
-        folder_name = f"WinnDixie_{safe_flyer_name}_{from_fmt}-{to_fmt}"
+        folder_name = f"WinnDixie_{flyer_name}_{from_fmt}-{to_fmt}"
         folder_path = base_folder / folder_name
         folder_path.mkdir(exist_ok=True)
 
-        flyer_base_name = f"WinnDixie_{safe_flyer_name}_{from_fmt}-{to_fmt}"
+        flyer_base_name = f"WinnDixie_{flyer_name}_{from_fmt}-{to_fmt}"
 
         print(f"📰 [{idx}/{len(weekly_flyers)}] Processing flyer: {flyer_base_name}")
 
@@ -379,8 +247,6 @@ def scrape_winndixie(store_code="0510", postal_code="32541"):
             continue
 
         data = resp.json()
-        with open("flyers_data.json", "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
         print(f"  📦 {len(data)} products found. Downloading images...")
 
         # First pass: determine maximum number of categories
@@ -388,18 +254,6 @@ def scrape_winndixie(store_code="0510", postal_code="32541"):
         for item in data:
             categories = item.get("categories", [])
             max_categories = max(max_categories, len(categories))
-
-        # Load HTML categories once for this flyer (for category matching)
-        # Fetch live from browser; falls back to cached t.html if fetch fails
-        try:
-            fetch_winndixie_html(save_path="t.html")
-        except Exception as e:
-            print(f"  ⚠️ SeleniumBase fetch failed ({e}) — falling back to cached t.html")
-        html_cat_map = parse_html_categories("t.html")
-        if html_cat_map:
-            print(f"  🗂️ Loaded {len(html_cat_map)} HTML categories for matching.")
-        else:
-            print("  ⚠️ No HTML category map available — using API categories only.")
 
         results = []
         for i, item in enumerate(data, 1):
@@ -416,16 +270,11 @@ def scrape_winndixie(store_code="0510", postal_code="32541"):
             for img_url in images:
                 img_name = f"{flyer_id}_{product_id}.jpg"
                 img_path = folder_path / img_name
-               # cropped = download_file(img_url, img_path, auto_crop=True)
+                cropped = download_file(img_url, img_path, auto_crop=True)
                 img_list.append(img_name)
 
-            # Get categories: prefer HTML-matched category, fall back to API
-            api_categories = item.get("categories", [])
-            html_cat = find_html_category(item.get("name", ""), html_cat_map) if html_cat_map else None
-            if html_cat:
-                categories = [html_cat]
-            else:
-                categories = api_categories
+            # Get categories dynamically
+            categories = item.get("categories", [])
             
             # Build result dictionary
             result = {

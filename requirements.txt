@@ -4,3 +4,7 @@ pymupdf
 fitz
 Pillow
 ftfy
+openai
+pydantic
+httpx
+python-dotenv
